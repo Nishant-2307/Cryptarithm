@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cryptarithm CSP Visualizer</title>
+<style>
+body {
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: linear-gradient(to bottom right, #f9f9fb, #eef2f3);
+  margin: 20px;
+  color: #222;
+}
+h2 {
+  text-align: center;
+  margin-bottom: 10px;
+}
+.container {
+  max-width: 800px;
+  margin: auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  padding: 20px 40px;
+}
+.row { margin-bottom: 12px; }
+.chip {
+  display: inline-block;
+  padding: 3px 8px;
+  margin: 2px;
+  border-radius: 5px;
+  background-color: #f3f3f3;
+  font-weight: bold;
+}
+#log {
+  height: 250px;
+  border: 1px solid #ccc;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: #fafafa;
+  font-family: Consolas, monospace;
+  font-size: 14px;
+}
+#assign, #domains {
+  min-height: 50px;
+  border: 1px solid #ddd;
+  padding: 8px;
+  margin-bottom: 10px;
+  background-color: #fcfcfc;
+  font-size: 14px;
+}
+/* Trace Colors */
+.log-ASSIGN { color: green; font-weight: bold; }
+.log-UNASSIGN { color: #0077cc; }
+.log-AC3_PRUNE, .log-PRUNE { color: #cc7a00; }
+.log-FAIL { color: red; font-weight: bold; }
+.log-SUCCESS { color: #008000; font-weight: bold; }
+.log-START { color: #555; }
+
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid #999; border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-left: 5px;
+}
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Equation visual */
+#equation {
+  font-family: "Courier New", monospace;
+  font-size: 28px;
+  letter-spacing: 4px;
+  line-height: 40px;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #ddd;
+  text-align: right;
+  white-space: pre; /* ensures alignment */
+}
+.digit-assigned { color: #0078d7; font-weight: bold; }
+.solved-digit { color: #009900; font-weight: bold; }
+.placeholder { color: #999; }
+</style>
+</head>
+<body>
+<div class="container">
+<h2>🔢 Cryptarithm CSP + AC-3 + Carry Visualization</h2>
+
+<div class="row">
+  <label>Addends (comma-separated): </label>
+  <input id="words" value="CROSS, ROADS" size="30">
+</div>
+<div class="row">
+  <label>Result word: </label>
+  <input id="result" value="DANGER" size="20">
+</div>
+<div class="row">
+  <label><input type="checkbox" id="use_ac3"> Enable AC-3 (MAC)</label>
+</div>
+
+<div class="row">
+  <button id="solveBtn">Solve</button>
+  <span id="statusText">Idle</span>
+</div>
+
+<div id="equation"></div>
+<hr>
+
+<div class="row">
+  <button id="startBtn">Start Animation</button>
+  <button id="pauseBtn" disabled>Pause</button>
+  <button id="stepBtn">Step</button>
+  <button id="clearBtn">Clear</button>
+  <label>Speed (ms): <input id="speed" type="number" value="300" style="width:70px;"></label>
+</div>
+
+<div class="row">
+  <progress id="progress" value="0" max="100"></progress>
+  <span id="pos">0 / 0</span>
+</div>
+
+<h3>Current Assignment</h3>
+<div id="assign"><i>No assignments yet</i></div>
+
+<h3>Current Domains</h3>
+<div id="domains"></div>
+
+<h3>Trace Log</h3>
+<div id="log"></div>
+</div>
+
+<script>
+const el = (id) => document.getElementById(id);
+let events = [], idx = 0, timer = null, statusTimer = null, loadingSpinner = null;
+let lastAssignment = {}, lastDomains = {}, isSolved = false;
+let currentWords = [], currentResult = "";
+
+// ---------- Equation Rendering ----------
+function renderEquation(words, result, assignment) {
+  const all = [...words, result];
+  const maxLen = Math.max(...all.map(w => w.length));
+  const pad = (w) => w.padStart(maxLen, " ");
+
+  // Prepare lines for the equation display
+  let lines = words.map((w, i) => (i === words.length - 1 ? "+ " : "  ") + pad(w));
+  lines.push("-".repeat(maxLen + 2));
+  lines.push("= " + pad(result));
+
+  // Replace each letter with its assigned digit (if assigned),
+  // otherwise keep the original letter visible in faint gray.
+  let html = lines.join("\n").replace(/[A-Z]/g, ch => {
+    if (assignment[ch] !== undefined) {
+      const cls = isSolved ? "solved-digit" : "digit-assigned";
+      return `<span class="${cls}">${assignment[ch]}</span>`;
+    }
+    return `<span style="color:#777;">${ch}</span>`; // show letter until assigned
+  });
+
+  el("equation").innerHTML = html;
+}
+
+
+// ---------- Animation + State ----------
+function formatEvent(e) {
+  switch (e.type) {
+    case "START": return `START: ${e.words?.join(" + ")} = ${e.result} (AC3=${e.use_ac3})`;
+    case "ASSIGN": return `ASSIGN: ${e.var} = ${e.value}`;
+    case "UNASSIGN": return `UNASSIGN: ${e.var}`;
+    case "AC3_PRUNE": return `AC3_PRUNE: ${e.var} → removed ${e.removed?.join(", ") || ""}`;
+    case "END": return e.result ? "✅ SOLUTION FOUND" : "❌ FAIL";
+    case "SOLVER_DONE": return "✔ Solver completed";
+    default: return e.type;
+  }
+}
+
+function renderState(e) {
+  if (e.assignment) lastAssignment = e.assignment;
+  if (e.domains) lastDomains = e.domains;
+  if (e.type === "END" && e.result) isSolved = true;
+
+  el("assign").innerHTML =
+    Object.keys(lastAssignment).length === 0 ?
+    "<i>No assignments yet</i>" :
+    Object.keys(lastAssignment).sort()
+      .map(k => `<span class="chip">${k} → ${lastAssignment[k]}</span>`).join("");
+
+  el("domains").innerHTML =
+    Object.keys(lastDomains).sort()
+      .map(k => `<div><b>${k}</b>: ${
+        lastDomains[k].map(x => `<span class="chip">${x}</span>`).join(" ")
+      }</div>`).join("");
+
+  renderEquation(currentWords, currentResult, lastAssignment);
+}
+
+function renderEvent() {
+  if (idx >= events.length) return;
+  const e = events[idx];
+  renderState(e);
+
+  if (!["CURRENT_ASSIGNMENT","CURRENT_DOMAINS"].includes(e.type)) {
+    const line = document.createElement("div");
+    line.textContent = `[${idx+1}] ${formatEvent(e)}`;
+    line.classList.add(`log-${e.type}`);
+    el("log").appendChild(line);
+    el("log").scrollTop = el("log").scrollHeight;
+  }
+
+  el("progress").value = idx + 1;
+  el("pos").textContent = `${idx + 1} / ${events.length}`;
+  idx++;
+}
+
+function startAnimation() {
+  if (!events.length) return;
+  const speed = parseInt(el("speed").value) || 300;
+  timer = setInterval(() => {
+    if (idx < events.length) renderEvent(); else stopAnimation();
+  }, speed);
+  el("pauseBtn").disabled = false;
+}
+function stopAnimation() { clearInterval(timer); timer = null; el("pauseBtn").disabled = true; }
+function resetPlayer() {
+  idx = 0; lastAssignment = {}; lastDomains = {}; isSolved = false;
+  el("log").innerHTML = "";
+  el("assign").innerHTML = "<i>No assignments yet</i>";
+  el("domains").innerHTML = "";
+  el("progress").value = 0; el("pos").textContent = "0 / 0";
+  renderEquation(currentWords, currentResult, {});
+}
+
+// ---------- Buttons ----------
+el("solveBtn").onclick = async () => {
+  await fetch("/clear", { method: "POST" });
+  currentWords = el("words").value.split(",").map(w => w.trim().toUpperCase());
+  currentResult = el("result").value.trim().toUpperCase();
+  renderEquation(currentWords, currentResult, {});
+  await fetch("/solve", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      words: currentWords,
+      result: currentResult,
+      use_ac3: el("use_ac3").checked
+    })
+  });
+  el("statusText").textContent = "⏳ Solving...";
+  statusTimer = setInterval(async () => {
+    const r = await (await fetch("/trace")).json();
+    if (r.ready) {
+      clearInterval(statusTimer);
+      el("statusText").textContent = "✅ Done — Trace Ready!";
+    }
+  }, 800);
+};
+
+async function fetchTraceWithSpinner() {
+  const btn = el("startBtn");
+  loadingSpinner = document.createElement("span");
+  loadingSpinner.className = "spinner";
+  btn.appendChild(loadingSpinner);
+  let tries = 0, traceData = null;
+  while (tries < 12) {
+    const r = await (await fetch("/trace")).json();
+    if (r.ready && r.events && r.events.length) { traceData = r; break; }
+    await new Promise(res => setTimeout(res, 800)); tries++;
+  }
+  btn.removeChild(loadingSpinner);
+  return traceData;
+}
+
+el("startBtn").onclick = async () => {
+  const r = await fetchTraceWithSpinner();
+  if (!r || !r.ready) return alert("Trace not ready yet! Try again in a few seconds.");
+  events = r.events;
+  resetPlayer();
+  el("progress").max = events.length;
+  renderEvent();
+  startAnimation();
+};
+
+el("pauseBtn").onclick = stopAnimation;
+el("stepBtn").onclick = () => { if (!timer) renderEvent(); };
+el("clearBtn").onclick = async () => {
+  await fetch("/clear", { method: "POST" });
+  resetPlayer();
+  el("statusText").textContent = "Idle";
+};
+</script>
+</body>
+</html>
