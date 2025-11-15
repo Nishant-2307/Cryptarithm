@@ -1,6 +1,10 @@
 # solver.py
-# Complete CSP solver for cryptarithms with optional AC-3 + carry column pruning.
+# Patched CSP solver for cryptarithms with optional AC-3 + carry column pruning.
 # Produces trace.json (list of events) for visualization.
+# - Normalizes input to uppercase
+# - Emits initial CURRENT_ASSIGNMENT / CURRENT_DOMAINS snapshot
+# - Performs explicit numeric equality check at completion to avoid false positives
+# - Keeps AC-3 + column carry propagation and top-carry enforcement
 
 import json
 import copy
@@ -33,10 +37,14 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
     trace_path: where to write trace.json
     Returns: mapping letter->digit if solution found else None
     """
+    # Normalize to uppercase so lowercase input works
+    words = [w.upper() for w in words]
+    result = result.upper()
+
     trace = TraceWriter(trace_path)
     trace.add({"type": "START", "words": words, "result": result, "use_ac3": bool(use_ac3)})
 
-    # Build letters set
+    # Build letters set (preserve order encountered)
     all_words = words + [result]
     letters = []
     for w in all_words:
@@ -44,12 +52,12 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
             if ch not in letters:
                 letters.append(ch)
 
-    # carry variables: one per column (plus final), index 0 is least significant column carry-in (0)
+    # Determine max columns (based on longest among addends and result)
     max_len = max(len(w) for w in all_words)
-    # We'll index columns 0..max_len-1 from right (LSB)
-    carry_vars = [f"C{idx}" for idx in range(max_len)]  # carry for column idx -> carry-out to next col
-    # We'll treat carry for column -1 (incoming to LSB) as implicit zero, and last carry result must match any leading
-    # Actually we create carries length = max_len (carry out of last column must be 0 or maybe equals leading letter)
+
+    # carry variables: one per column (carry-out of column i stored in C{i})
+    carry_vars = [f"C{idx}" for idx in range(max_len)]
+
     variables = list(letters) + carry_vars
 
     # Domains
@@ -61,7 +69,7 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
             domains[v] = set(range(1, 10))  # leading letter cannot be 0
         else:
             domains[v] = set(range(0, 10))
-    # Carries domain: 0..(number of addends) because sum could produce larger carry (but carry out per column is at most len(words))
+    # Carries domain: 0..(number of addends)
     max_carry = len(words)
     for c in carry_vars:
         domains[c] = set(range(0, max_carry + 1))
@@ -69,13 +77,15 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
     # Apply BUS/preset assignments
     assignment = {}
     if BUS:
-        for k, val in BUS.items():
+        # normalize BUS keys to uppercase
+        BUS2 = {k.upper(): v for k, v in BUS.items()}
+        for k, val in BUS2.items():
             if k in domains and val in domains[k]:
                 assignment[k] = val
                 domains[k] = {val}
             else:
-                # inconsistent preset -> immediate fail
                 trace.add({"type": "END", "result": None, "reason": "inconsistent BUS/preset"})
+                trace.add({"type": "SOLVER_DONE", "note": "Solver finished writing full trace."})
                 return None
 
     # Neighbors (for all-different)
@@ -88,6 +98,21 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
     # Utility: get current domains snapshot
     def snapshot_domains(d):
         return {k: set(v) for k, v in d.items()}
+
+    # ---------- Utility: evaluate numeric sum when fully assigned ----------
+    def evaluate_full_assignment(assign):
+        """Return True iff numeric sum(words) == numeric result given assign for all letters."""
+        # build numbers by concatenating digits; if any leading letter is assigned 0 (shouldn't happen), reject
+        def word_value(w):
+            s = "".join(str(assign[ch]) for ch in w)
+            return int(s)
+        try:
+            addends = [word_value(w) for w in words]
+            resval = word_value(result)
+            return sum(addends) == resval
+        except Exception:
+            # any missing mapping -> not fully evaluatable
+            return False
 
     # ---------- Constraint checks ----------
     def all_different_consistent(var, val, cur_assign):
@@ -103,8 +128,10 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
         This function scans all columns and checks whether there exists at least one supporting tuple
         for each column's variables (operands, result letter, carry_in, carry_out). If some column
         has zero supporting tuples for the current domains and assignments -> inconsistency.
+
+        Additionally enforces that the topmost carry is zero when the result has no extra leading digit.
         """
-        # Build reversed words with proper padding with ' ' for missing letters (treated as 0)
+        # Build reversed words with proper padding (None for missing letters)
         rev_words = []
         for w in words:
             rev = list(w[::-1]) + [None] * (max_len - len(w))
@@ -137,20 +164,20 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
                 if v in cur_assign:
                     doms.append([cur_assign[v]])
                 else:
-                    doms.append(sorted(cur_domains[v]))
+                    # if domain missing (shouldn't happen) treat as empty
+                    doms.append(sorted(cur_domains.get(v, [])))
 
             # Now brute force search small space (digits 0-9 and small carry)
-            # For missing word letter (None) treat as 0 (i.e., contributes 0)
             found_support = False
-            # We'll iterate over cartesian product of domains (pruned by trivial all-different)
+            # iterate over cartesian product (may be heavy but columns/domains small typically)
             for prod_vals in product(*doms):
                 mapping = dict(zip(keys, prod_vals))
-                # map None letters -> 0 not present here since we didn't include None
+
                 # Check all-different among letters (if two different letter variables have same digit it's invalid)
                 violated = False
                 seen_digits = {}
                 for k, v in mapping.items():
-                    if k in letters:  # only enforce all-different on letter variables
+                    if k in letters:
                         if v in seen_digits and seen_digits[v] != k:
                             violated = True
                             break
@@ -165,34 +192,51 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
                     if ch is None:
                         s += 0
                     else:
-                        s += mapping.get(ch, None)
-                        if mapping.get(ch, None) is None:
+                        val = mapping.get(ch, None)
+                        if val is None:
                             s = None
                             break
+                        s += val
                 if s is None:
                     continue
+
                 cin = mapping.get(cin_var, 0) if cin_var else 0
                 s += cin
                 expected_digit = s % 10
                 cout_expected = s // 10
+
                 # result letter value:
                 if res_letter is None:
-                    # If there's no result letter, expected_digit must be 0
+                    # If there's no result letter in this column, expected_digit must be 0
                     if expected_digit != 0:
                         continue
                 else:
                     if mapping.get(res_letter, None) != expected_digit:
                         continue
+
                 # carry out must match
                 if mapping.get(cout_var, None) != cout_expected:
                     continue
 
-                # if reached here, tuple is supported
+                # supported tuple found
                 found_support = True
                 break
 
             if not found_support:
                 return False
+
+        # Enforce final/top carry = 0 when result doesn't have extra leading digit
+        top_c = f"C{max_len-1}"
+        # If result's length is <= max_len (i.e., no extra digit beyond column range), top carry must be zero.
+        # (Note: max_len already is max length among addends and result; this check ensures no leftover carry.)
+        if len(result) <= max_len:
+            if top_c in cur_assign:
+                if cur_assign[top_c] != 0:
+                    return False
+            else:
+                if 0 not in cur_domains.get(top_c, set()):
+                    return False
+
         return True
 
     # ---------- AC-3 for all-different + column pruning ----------
@@ -205,8 +249,6 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
         removed = set()
         Dj = doms[Xj]
         for a in list(doms[Xi]):
-            # a is supported if there exists b in Dj such that b != a
-            # Equivalent: a is unsupported only if Dj == {a}
             if len(Dj) == 1 and a in Dj:
                 removed.add(a)
         if removed:
@@ -248,7 +290,7 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
             keys = []
             for v in involved:
                 keys.append(v)
-                dom_lists.append(sorted(doms[v]))
+                dom_lists.append(sorted(doms.get(v, [])))
 
             # For each variable, track supported values
             supported = {v: set() for v in involved}
@@ -268,12 +310,19 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
                     continue
                 # compute column arithmetic
                 s = 0
+                skip = False
                 for widx in range(len(words)):
                     ch = rev_words[widx][col]
                     if ch is None:
                         s += 0
                     else:
+                        # mapping should have ch
+                        if ch not in mapping:
+                            skip = True
+                            break
                         s += mapping[ch]
+                if skip:
+                    continue
                 cin = mapping.get(cin_var, 0) if cin_var else 0
                 s += cin
                 digit = s % 10
@@ -283,9 +332,9 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
                     if digit != 0:
                         continue
                 else:
-                    if mapping[res_letter] != digit:
+                    if mapping.get(res_letter) != digit:
                         continue
-                if mapping[cout_var] != cout_expected:
+                if mapping.get(cout_var) != cout_expected:
                     continue
                 # supported tuple -> mark values supported
                 for k, v in mapping.items():
@@ -293,18 +342,26 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
 
             # Now remove unsupported values
             for v in involved:
-                to_remove = set(doms[v]) - supported[v]
+                to_remove = set(doms.get(v, set())) - supported[v]
                 if to_remove:
-                    doms[v] -= to_remove
+                    doms[v] = set(doms.get(v, set())) - to_remove
                     removed_map[v].update(to_remove)
+
+        # After pruning, ensure top carry domain contains 0 when required
+        top_c = f"C{max_len-1}"
+        if len(result) <= max_len:
+            if 0 not in doms.get(top_c, set()):
+                # make top carry domain empty to indicate inconsistency
+                removed_map[top_c].update(set(doms.get(top_c, set())))
+                doms[top_c] = set()
 
         return removed_map
 
     def run_ac3_propagation(doms, cur_assign):
         """
         Run AC-3 style propagation:
-        - First, binary all-different revise passes until fixpoint
-        - Then, column-wise carry pruning (n-ary) to remove unsupported values
+        - binary all-different revise passes until fixpoint
+        - column-wise carry pruning (n-ary) to remove unsupported values
         Returns tuple (consistent: bool, removed_events: list)
         """
         removed_events = []
@@ -319,7 +376,6 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
             removed = revise_all_diff(Xi, Xj, doms)
             if removed:
                 removed_events.append({"type": "AC3_PRUNE", "var": Xi, "removed": sorted(list(removed))})
-                # if domain becomes empty -> inconsistent
                 if not doms[Xi]:
                     return False, removed_events
                 for Xk in neighbors[Xi]:
@@ -331,7 +387,7 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
         for v, removed in removed_map.items():
             if removed:
                 removed_events.append({"type": "AC3_PRUNE", "var": v, "removed": sorted(list(removed))})
-                if not doms[v]:
+                if not doms.get(v, set()):
                     return False, removed_events
 
         # Finally, quick feasibility check of carries/columns using assignment + doms
@@ -344,6 +400,10 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
     # keep order of variables: letters first (we'll pick MRV), then carries
     var_list = list(letters) + carry_vars
 
+    # emit initial snapshot so front-end sees starting domains/assignment
+    trace.add({"type": "CURRENT_ASSIGNMENT", "assignment": {k: v for k, v in assignment.items()}})
+    trace.add({"type": "CURRENT_DOMAINS", "domains": {k: sorted(list(domains[k])) for k in domains}})
+
     # initial propagation if needed
     if use_ac3:
         ok, events = run_ac3_propagation(domains, assignment)
@@ -351,30 +411,42 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
             trace.add(ev)
         if not ok:
             trace.add({"type": "END", "result": None, "reason": "AC3 inconsistency at start"})
+            trace.add({"type": "SOLVER_DONE", "note": "Solver finished writing full trace."})
             return None
 
     # helper: choose unassigned variable (MRV then degree)
     def select_unassigned_var(cur_assign, doms):
         unassigned = [v for v in var_list if v not in cur_assign]
-        # MRV
-        unassigned.sort(key=lambda v: (len(doms[v]), -len(neighbors[v]) if v in neighbors else 0))
+        # MRV then degree heuristic
+        unassigned.sort(key=lambda v: (len(doms.get(v, set())), -len(neighbors[v]) if v in neighbors else 0))
         return unassigned[0] if unassigned else None
 
     steps = 0
     def backtrack(cur_assign, doms):
         nonlocal steps
         steps += 1
-        # report current assignment and domains occasionally (front-end expects)
+        # report current assignment and domains (front-end expects to see progress)
         trace.add({"type": "CURRENT_ASSIGNMENT", "assignment": {k: v for k, v in cur_assign.items()}})
-        trace.add({"type": "CURRENT_DOMAINS", "domains": {k: sorted(list(doms[k])) for k in doms}})
+        trace.add({"type": "CURRENT_DOMAINS", "domains": {k: sorted(list(doms.get(k, set()))) for k in doms}})
 
         # check if complete
         if len(cur_assign) == len(var_list):
-            # final check: full arithmetic correctness
-            if carries_consistent_partial(cur_assign, doms):
-                trace.add({"type": "END", "result": {k: cur_assign[k] for k in letters}})
-                return {k: cur_assign[k] for k in letters}
+            # final check: full arithmetic correctness (numeric equality)
+            # first ensure per-column carry consistency
+            if not carries_consistent_partial(cur_assign, doms):
+                return None
+            # then evaluate the full numeric equality
+            # build mapping for letters only
+            letter_map = {k: cur_assign[k] for k in letters if k in cur_assign}
+            if set(letter_map.keys()) == set(letters):
+                if evaluate_full_assignment(letter_map):
+                    trace.add({"type": "END", "result": {k: cur_assign[k] for k in letters}})
+                    return {k: cur_assign[k] for k in letters}
+                else:
+                    # numeric mismatch; treat as failure and continue search
+                    return None
             else:
+                # not all letter values assigned (shouldn't happen here) -> fail
                 return None
 
         var = select_unassigned_var(cur_assign, doms)
@@ -382,9 +454,9 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
             return None
 
         # iterate values (order small->large)
-        domain_vals = sorted(doms[var])
+        domain_vals = sorted(doms.get(var, []))
         for val in domain_vals:
-            # check all-different conflict quickly
+            # quick all-different conflict check for letter variables
             if var in letters and not all_different_consistent(var, val, cur_assign):
                 continue
 
@@ -397,10 +469,10 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
             # forward checking: remove val from other letter domains (all-different)
             if var in letters:
                 for other in neighbors[var]:
-                    if other not in cur_assign and val in doms[other]:
-                        doms[other].remove(val)
+                    if other not in cur_assign and val in doms.get(other, set()):
+                        doms[other] = set(doms.get(other, set())) - {val}
 
-            # if var is carry or letter may affect domain by arithmetic - optionally run AC3
+            # run AC3 or lightweight check
             consistent = True
             if use_ac3:
                 ok, evs = run_ac3_propagation(doms, cur_assign)
@@ -408,7 +480,6 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
                     trace.add(e)
                 consistent = ok
             else:
-                # light-weight partial-check to avoid obvious contradictions
                 consistent = carries_consistent_partial(cur_assign, doms)
 
             if consistent:
@@ -419,10 +490,10 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
             # failure -> undo
             trace.add({"type": "UNASSIGN", "var": var})
             del cur_assign[var]
-            doms = doms_snapshot  # restore
-            # make sure to sync the doms reference the caller expects by copying keys back
-            for k in doms_snapshot:
-                doms[k] = set(doms_snapshot[k])
+            # restore domains (deep restore)
+            restored = snapshot_domains(doms_snapshot)
+            for k in doms:
+                doms[k] = set(restored.get(k, set()))
 
         return None
 
@@ -442,11 +513,10 @@ def solve_cryptarithm(words, result, BUS=None, use_ac3=False, trace_path="trace.
             "steps": steps
         })
 
-    # ✅ Mark solver completion explicitly so /trace can detect it
+    # Mark solver completion explicitly so /trace can detect it
     trace.add({
         "type": "SOLVER_DONE",
         "note": "Solver finished writing full trace."
     })
 
     return sol
-
