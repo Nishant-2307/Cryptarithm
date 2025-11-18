@@ -1,0 +1,26 @@
+# Ignore project-generated trace file
+trace.json
+
+# Ignore local interpreter or helper folders if present here
+Lib/
+Scripts/
+
+# Byte-compiled / cache
+__pycache__/
+pycache/
+**/pycache/
+*.py[cod]
+
+# Virtual environment directories
+.venv/
+env/
+ENV/
+
+# Editor and OS files
+.vscode/
+.DS_Store
+
+# Build / distribution
+build/
+dist/
+*.egg-info/

@@ -2,10 +2,11 @@
   {
     "type": "START",
     "words": [
-      "AA"
+      "5",
+      "6"
     ],
-    "result": "ZZ",
-    "use_ac3": true
+    "result": "CC",
+    "use_ac3": false
   },
   {
     "type": "CURRENT_ASSIGNMENT",
@@ -14,7 +15,8 @@
   {
     "type": "CURRENT_DOMAINS",
     "domains": {
-      "A": [
+      "5": [
+        0,
         1,
         2,
         3,
@@ -25,7 +27,19 @@
         8,
         9
       ],
-      "Z": [
+      "6": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C": [
         1,
         2,
         3,
@@ -38,33 +52,475 @@
       ],
       "C0": [
         0,
-        1
+        1,
+        2
       ],
       "C1": [
         0,
-        1
+        1,
+        2
       ]
     }
   },
   {
-    "type": "AC3_PRUNE",
-    "var": "A",
-    "removed": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9
-    ]
+    "type": "CURRENT_ASSIGNMENT",
+    "assignment": {}
+  },
+  {
+    "type": "CURRENT_DOMAINS",
+    "domains": {
+      "5": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "6": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C0": [
+        0,
+        1,
+        2
+      ],
+      "C1": [
+        0,
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "type": "ASSIGN",
+    "var": "C0",
+    "value": 0
+  },
+  {
+    "type": "UNASSIGN",
+    "var": "C0"
+  },
+  {
+    "type": "ASSIGN",
+    "var": "C0",
+    "value": 1
+  },
+  {
+    "type": "CURRENT_ASSIGNMENT",
+    "assignment": {
+      "C0": 1
+    }
+  },
+  {
+    "type": "CURRENT_DOMAINS",
+    "domains": {
+      "5": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "6": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C0": [
+        0,
+        1,
+        2
+      ],
+      "C1": [
+        0,
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "type": "ASSIGN",
+    "var": "C1",
+    "value": 0
+  },
+  {
+    "type": "CURRENT_ASSIGNMENT",
+    "assignment": {
+      "C0": 1,
+      "C1": 0
+    }
+  },
+  {
+    "type": "CURRENT_DOMAINS",
+    "domains": {
+      "5": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "6": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C0": [
+        0,
+        1,
+        2
+      ],
+      "C1": [
+        0,
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "type": "ASSIGN",
+    "var": "C",
+    "value": 1
+  },
+  {
+    "type": "CURRENT_ASSIGNMENT",
+    "assignment": {
+      "C0": 1,
+      "C1": 0,
+      "C": 1
+    }
+  },
+  {
+    "type": "CURRENT_DOMAINS",
+    "domains": {
+      "5": [
+        0,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "6": [
+        0,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C0": [
+        0,
+        1,
+        2
+      ],
+      "C1": [
+        0,
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "type": "ASSIGN",
+    "var": "5",
+    "value": 0
+  },
+  {
+    "type": "UNASSIGN",
+    "var": "5"
+  },
+  {
+    "type": "ASSIGN",
+    "var": "5",
+    "value": 2
+  },
+  {
+    "type": "CURRENT_ASSIGNMENT",
+    "assignment": {
+      "C0": 1,
+      "C1": 0,
+      "C": 1,
+      "5": 2
+    }
+  },
+  {
+    "type": "CURRENT_DOMAINS",
+    "domains": {
+      "5": [
+        0,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "6": [
+        0,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C0": [
+        0,
+        1,
+        2
+      ],
+      "C1": [
+        0,
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "type": "ASSIGN",
+    "var": "6",
+    "value": 0
+  },
+  {
+    "type": "UNASSIGN",
+    "var": "6"
+  },
+  {
+    "type": "ASSIGN",
+    "var": "6",
+    "value": 3
+  },
+  {
+    "type": "UNASSIGN",
+    "var": "6"
+  },
+  {
+    "type": "ASSIGN",
+    "var": "6",
+    "value": 4
+  },
+  {
+    "type": "UNASSIGN",
+    "var": "6"
+  },
+  {
+    "type": "ASSIGN",
+    "var": "6",
+    "value": 5
+  },
+  {
+    "type": "UNASSIGN",
+    "var": "6"
+  },
+  {
+    "type": "ASSIGN",
+    "var": "6",
+    "value": 6
+  },
+  {
+    "type": "UNASSIGN",
+    "var": "6"
+  },
+  {
+    "type": "ASSIGN",
+    "var": "6",
+    "value": 7
+  },
+  {
+    "type": "UNASSIGN",
+    "var": "6"
+  },
+  {
+    "type": "ASSIGN",
+    "var": "6",
+    "value": 8
+  },
+  {
+    "type": "UNASSIGN",
+    "var": "6"
+  },
+  {
+    "type": "ASSIGN",
+    "var": "6",
+    "value": 9
+  },
+  {
+    "type": "CURRENT_ASSIGNMENT",
+    "assignment": {
+      "C0": 1,
+      "C1": 0,
+      "C": 1,
+      "5": 2,
+      "6": 9
+    }
+  },
+  {
+    "type": "CURRENT_DOMAINS",
+    "domains": {
+      "5": [
+        0,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "6": [
+        0,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "C0": [
+        0,
+        1,
+        2
+      ],
+      "C1": [
+        0,
+        1,
+        2
+      ]
+    }
   },
   {
     "type": "END",
-    "result": null,
-    "reason": "AC3 inconsistency at start"
+    "result": {
+      "5": 2,
+      "6": 9,
+      "C": 1
+    }
+  },
+  {
+    "type": "END",
+    "result": {
+      "5": 2,
+      "6": 9,
+      "C": 1
+    },
+    "reason": "solution found",
+    "steps": 6
   },
   {
     "type": "SOLVER_DONE",
