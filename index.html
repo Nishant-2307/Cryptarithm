@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Cryptarithm CSP Visualizer</title>
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
 body {
   font-family: "Segoe UI", Arial, sans-serif;
@@ -10,19 +11,58 @@ body {
   margin: 20px;
   color: #222;
 }
-h2 {
+h2, h3 {
   text-align: center;
   margin-bottom: 10px;
 }
 .container {
-  max-width: 800px;
+  max-width: 1400px;
   margin: auto;
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   padding: 20px 40px;
 }
+.two-column {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.column {
+  min-height: 400px;
+}
 .row { margin-bottom: 12px; }
+button {
+  height: 32px;
+  width: 100px;
+  padding: 0 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #f8f8f8;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  vertical-align: middle;
+}
+button:hover:not(:disabled) {
+  background-color: #e8e8e8;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+input[type="text"], input[type="number"] {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  vertical-align: middle;
+}
+label {
+  vertical-align: middle;
+}
 .chip {
   display: inline-block;
   padding: 3px 8px;
@@ -47,6 +87,33 @@ h2 {
   margin-bottom: 10px;
   background-color: #fcfcfc;
   font-size: 14px;
+}
+#graphContainer {
+  width: 100%;
+  height: 600px;
+  border: 2px solid #ddd;
+  background: linear-gradient(to bottom, #fafafa 0%, #f0f0f0 100%);
+  border-radius: 8px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+  margin-bottom: 15px;
+}
+.graph-legend {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #333;
 }
 /* Trace Colors */
 .log-ASSIGN { color: green; font-weight: bold; }
@@ -83,6 +150,7 @@ h2 {
 }
 .digit-assigned { color: #0078d7; font-weight: bold; }
 .solved-digit { color: #009900; font-weight: bold; }
+.failed-digit { color: #ff0000; font-weight: bold; }
 .placeholder { color: #999; }
 </style>
 </head>
@@ -104,40 +172,349 @@ h2 {
 
 <div class="row">
   <button id="solveBtn">Solve</button>
+  <button id="clearBtn">🗑 Clear</button>
   <span id="statusText">Idle</span>
 </div>
 
 <div id="equation"></div>
 <hr>
 
+<h3>📊 Equation & Assignment Animation</h3>
 <div class="row">
-  <button id="startBtn">Start Animation</button>
-  <button id="pauseBtn" disabled>Pause</button>
-  <button id="stepBtn">Step</button>
-  <button id="clearBtn">Clear</button>
-  <label>Speed (ms): <input id="speed" type="number" value="300" style="width:70px;"></label>
+  <button id="startEqBtn">▶ Start</button>
+  <button id="pauseEqBtn" disabled>⏸ Pause</button>
+  <button id="stepEqBtn">⏭ Step</button>
+  <button id="resetEqBtn">🔄 Reset</button>
+  <label>Speed (ms): <input id="speedEq" type="number" value="20" style="width:70px;"></label>
 </div>
 
 <div class="row">
-  <progress id="progress" value="0" max="100"></progress>
-  <span id="pos">0 / 0</span>
+  <progress id="progressEq" value="0" max="100"></progress>
+  <span id="posEq">0 / 0</span>
 </div>
 
-<h3>Current Assignment</h3>
-<div id="assign"><i>No assignments yet</i></div>
+<hr>
 
-<h3>Current Domains</h3>
-<div id="domains"></div>
+<h3>🌳 Search Tree Animation</h3>
+<div class="row">
+  <button id="startGraphBtn">▶ Start</button>
+  <button id="pauseGraphBtn" disabled>⏸ Pause</button>
+  <button id="stepGraphBtn">⏭ Step</button>
+  <button id="resetGraphBtn">🔄 Reset</button>
+  <label>Speed (ms): <input id="speedGraph" type="number" value="100" style="width:70px;"></label>
+</div>
 
-<h3>Trace Log</h3>
-<div id="log"></div>
+<div class="row">
+  <progress id="progressGraph" value="0" max="100"></progress>
+  <span id="posGraph">0 / 0</span>
+</div>
+<div class="graph-legend">
+  <div class="legend-item">
+    <div class="legend-color" style="background-color: #E8E8E8;"></div>
+    <span>Root</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background-color: #F0F0F0;"></div>
+    <span>Explored</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background-color: #B3E5B3;"></div>
+    <span>Current Path</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background-color: #FFD700;"></div>
+    <span>Current Node</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background-color: #FFB6C1;"></div>
+    <span>Dead End</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background-color: #7BE141;"></div>
+    <span>Solution Path</span>
+  </div>
+</div>
+<div id="graphContainer"></div>
+
+<div class="two-column">
+  <div class="column">
+    <h3>Current Assignment</h3>
+    <div id="assign"><i>No assignments yet</i></div>
+
+    <h3>Current Domains</h3>
+    <div id="domains"></div>
+  </div>
+
+  <div class="column">
+    <h3>Trace Log</h3>
+    <div id="log"></div>
+  </div>
+</div>
 </div>
 
 <script>
 const el = (id) => document.getElementById(id);
-let events = [], idx = 0, timer = null, statusTimer = null, loadingSpinner = null;
-let lastAssignment = {}, lastDomains = {}, isSolved = false;
+let events = [];
+let eqIdx = 0, graphIdx = 0;
+let eqTimer = null, graphTimer = null;
+let statusTimer = null, loadingSpinner = null;
+let lastAssignment = {}, lastDomains = {}, isSolved = false, isFailed = false;
 let currentWords = [], currentResult = "";
+let network = null, nodes = null, edges = null;
+let allVariables = [];
+
+// ---------- Search Tree Visualization ----------
+let searchTree = { nodes: [], edges: [], nodeMap: {}, eventToNodeMap: [] };
+let nodeIdCounter = 0;
+let currentNodeId = 0;
+let nodeStack = []; // Stack to track current path in DFS
+let graphStateStack = []; // Track the current path for graph animation
+
+function formatNodeLabel(assignment) {
+  if (Object.keys(assignment).length === 0) {
+    return 'ROOT';
+  }
+
+  // Separate letters and carries
+  const letters = {};
+  const carries = {};
+
+  Object.entries(assignment).forEach(([k, v]) => {
+    if (k.startsWith('C') && k.length > 1) {
+      carries[k] = v;
+    } else {
+      letters[k] = v;
+    }
+  });
+
+  // Sort letters alphabetically
+  const letterStr = Object.keys(letters)
+    .sort()
+    .map(k => `${k}=${letters[k]}`)
+    .join(' ');
+
+  // Sort carries by number (C0, C1, C2, ...)
+  const carryStr = Object.keys(carries)
+    .sort((a, b) => {
+      const numA = parseInt(a.substring(1));
+      const numB = parseInt(b.substring(1));
+      return numA - numB;
+    })
+    .map(k => `${k}=${carries[k]}`)
+    .join(' ');
+
+  // Combine with letters on top, carries below
+  if (letterStr && carryStr) {
+    return `${letterStr}\n━━━━━\n${carryStr}`;
+  } else if (letterStr) {
+    return letterStr;
+  } else {
+    return carryStr;
+  }
+}
+
+function buildSearchTreeFromEvents(events) {
+  searchTree = { nodes: [], edges: [], nodeMap: {}, eventToNodeMap: [] };
+  nodeIdCounter = 0;
+  nodeStack = [];
+
+  // Create root node (empty assignment)
+  const rootId = nodeIdCounter++;
+  searchTree.nodes.push({
+    id: rootId,
+    label: 'ROOT',
+    level: 0,
+    assignment: {},
+    color: { background: '#E8E8E8', border: '#999' }
+  });
+  searchTree.nodeMap[rootId] = searchTree.nodes[0];
+  nodeStack.push(rootId);
+
+  let currentLevel = 0;
+
+  // Map each event index to the current node stack state
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+
+    // Store the current stack state for this event
+    searchTree.eventToNodeMap[i] = [...nodeStack];
+
+    if (e.type === 'ASSIGN') {
+      // Create new child node for this assignment
+      const parentId = nodeStack[nodeStack.length - 1];
+      const parentNode = searchTree.nodeMap[parentId];
+      const newAssignment = { ...parentNode.assignment, [e.var]: e.value };
+
+      const newNodeId = nodeIdCounter++;
+      const newNode = {
+        id: newNodeId,
+        label: formatNodeLabel(newAssignment),
+        level: currentLevel + 1,
+        assignment: newAssignment,
+        var: e.var,
+        value: e.value,
+        color: { background: '#97C2FC', border: '#2B7CE9' }
+      };
+
+      searchTree.nodes.push(newNode);
+      searchTree.nodeMap[newNodeId] = newNode;
+      searchTree.edges.push({
+        from: parentId,
+        to: newNodeId,
+        label: `${e.var}=${e.value}`,
+        arrows: 'to',
+        color: { color: '#666' },
+        font: { size: 11, color: '#555', strokeWidth: 0 }
+      });
+
+      nodeStack.push(newNodeId);
+      currentLevel++;
+
+    } else if (e.type === 'UNASSIGN') {
+      // Backtrack: pop from stack
+      if (nodeStack.length > 1) {
+        const backtrackNode = nodeStack.pop();
+        searchTree.nodeMap[backtrackNode].color = { background: '#FFB6C1', border: '#E74C3C' };
+        currentLevel--;
+      }
+    } else if (e.type === 'END' && e.result) {
+      // Mark solution path
+      nodeStack.forEach(nodeId => {
+        searchTree.nodeMap[nodeId].color = { background: '#7BE141', border: '#4CAF50' };
+      });
+    }
+  }
+
+  return searchTree;
+}
+
+function initializeSearchTree() {
+  if (!events || events.length === 0) {
+    console.log("No events to build tree from");
+    return;
+  }
+
+  console.log("Building search tree from", events.length, "events");
+  const tree = buildSearchTreeFromEvents(events);
+  console.log("Tree built with", tree.nodes.length, "nodes");
+
+  nodes = new vis.DataSet(tree.nodes);
+  edges = new vis.DataSet(tree.edges);
+
+  const container = el('graphContainer');
+  if (!container) {
+    console.error("Graph container not found!");
+    return;
+  }
+
+  const data = { nodes: nodes, edges: edges };
+  const options = {
+    layout: {
+      hierarchical: {
+        direction: 'UD',
+        sortMethod: 'directed',
+        nodeSpacing: 180,
+        levelSeparation: 120,
+        treeSpacing: 250
+      }
+    },
+    physics: {
+      enabled: false
+    },
+    interaction: {
+      dragNodes: false,
+      dragView: true,
+      zoomView: true
+    },
+    nodes: {
+      shape: 'box',
+      margin: { top: 10, right: 15, bottom: 10, left: 15 },
+      widthConstraint: { minimum: 100, maximum: 200 },
+      font: {
+        size: 13,
+        face: 'Consolas, Monaco, monospace',
+        multi: true,
+        bold: { color: '#333', size: 13 }
+      },
+      borderWidth: 2,
+      shadow: {
+        enabled: true,
+        color: 'rgba(0,0,0,0.15)',
+        size: 8,
+        x: 2,
+        y: 2
+      },
+      borderWidthSelected: 3
+    },
+    edges: {
+      smooth: {
+        type: 'cubicBezier',
+        forceDirection: 'vertical',
+        roundness: 0.4
+      },
+      font: {
+        size: 11,
+        align: 'middle',
+        background: 'rgba(255,255,255,0.8)',
+        strokeWidth: 0
+      },
+      width: 2
+    }
+  };
+
+  // Destroy existing network if any
+  if (network) {
+    network.destroy();
+  }
+
+  network = new vis.Network(container, data, options);
+  console.log("Search tree network initialized");
+}
+
+function highlightCurrentNode(eventIndex) {
+  if (!nodes || !searchTree.nodeMap || !searchTree.eventToNodeMap) return;
+  if (eventIndex >= searchTree.eventToNodeMap.length) return;
+
+  // Get the pre-computed stack for this event
+  const stack = searchTree.eventToNodeMap[eventIndex];
+  if (!stack || stack.length === 0) return;
+
+  // Only update nodes that changed from the previous state
+  if (graphIdx === 0 || !graphStateStack || graphStateStack.length === 0) {
+    // First time: reset all nodes
+    Object.values(searchTree.nodeMap).forEach(node => {
+      if (node.id === 0) {
+        nodes.update({ id: node.id, color: { background: '#E8E8E8', border: '#999' } });
+      } else {
+        nodes.update({ id: node.id, color: { background: '#F0F0F0', border: '#CCC' } });
+      }
+    });
+  } else {
+    // Reset nodes that are no longer in the path
+    graphStateStack.forEach(nodeId => {
+      if (!stack.includes(nodeId) && nodeId !== 0) {
+        nodes.update({ id: nodeId, color: { background: '#F0F0F0', border: '#CCC' } });
+      }
+    });
+  }
+
+  // Highlight path from root to current
+  stack.forEach((nodeId, index) => {
+    if (index === stack.length - 1) {
+      // Current node - bright yellow
+      nodes.update({ id: nodeId, color: { background: '#FFD700', border: '#FFA500' } });
+      if (network) {
+        network.focus(nodeId, { scale: 1.0, animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+      }
+    } else if (nodeId !== 0) {
+      // Path nodes - light green
+      nodes.update({ id: nodeId, color: { background: '#B3E5B3', border: '#4CAF50' } });
+    }
+  });
+
+  // Store current stack for next iteration
+  graphStateStack = [...stack];
+}
 
 // ---------- Equation Rendering ----------
 function renderEquation(words, result, assignment) {
@@ -154,7 +531,7 @@ function renderEquation(words, result, assignment) {
   // otherwise keep the original letter visible in faint gray.
   let html = lines.join("\n").replace(/[A-Z]/g, ch => {
     if (assignment[ch] !== undefined) {
-      const cls = isSolved ? "solved-digit" : "digit-assigned";
+      const cls = isFailed ? "failed-digit" : (isSolved ? "solved-digit" : "digit-assigned");
       return `<span class="${cls}">${assignment[ch]}</span>`;
     }
     return `<span style="color:#777;">${ch}</span>`; // show letter until assigned
@@ -177,10 +554,11 @@ function formatEvent(e) {
   }
 }
 
-function renderState(e) {
+function renderEquationState(e) {
   if (e.assignment) lastAssignment = e.assignment;
   if (e.domains) lastDomains = e.domains;
   if (e.type === "END" && e.result) isSolved = true;
+  if (e.type === "END" && !e.result) isFailed = true;
 
   el("assign").innerHTML =
     Object.keys(lastAssignment).length === 0 ?
@@ -197,40 +575,90 @@ function renderState(e) {
   renderEquation(currentWords, currentResult, lastAssignment);
 }
 
-function renderEvent() {
-  if (idx >= events.length) return;
-  const e = events[idx];
-  renderState(e);
+function renderEquationEvent() {
+  if (eqIdx >= events.length) return;
+  const e = events[eqIdx];
+
+  renderEquationState(e);
 
   if (!["CURRENT_ASSIGNMENT","CURRENT_DOMAINS"].includes(e.type)) {
     const line = document.createElement("div");
-    line.textContent = `[${idx+1}] ${formatEvent(e)}`;
+    line.textContent = `[${eqIdx+1}] ${formatEvent(e)}`;
     line.classList.add(`log-${e.type}`);
     el("log").appendChild(line);
     el("log").scrollTop = el("log").scrollHeight;
   }
 
-  el("progress").value = idx + 1;
-  el("pos").textContent = `${idx + 1} / ${events.length}`;
-  idx++;
+  el("progressEq").value = eqIdx + 1;
+  el("posEq").textContent = `${eqIdx + 1} / ${events.length}`;
+  eqIdx++;
 }
 
-function startAnimation() {
-  if (!events.length) return;
-  const speed = parseInt(el("speed").value) || 300;
-  timer = setInterval(() => {
-    if (idx < events.length) renderEvent(); else stopAnimation();
-  }, speed);
-  el("pauseBtn").disabled = false;
+function renderGraphEvent() {
+  if (graphIdx >= events.length) return;
+
+  highlightCurrentNode(graphIdx);
+
+  el("progressGraph").value = graphIdx + 1;
+  el("posGraph").textContent = `${graphIdx + 1} / ${events.length}`;
+  graphIdx++;
 }
-function stopAnimation() { clearInterval(timer); timer = null; el("pauseBtn").disabled = true; }
+
+function startEqAnimation() {
+  if (!events.length) return;
+  const speed = parseInt(el("speedEq").value) || 20;
+  eqTimer = setInterval(() => {
+    if (eqIdx < events.length) renderEquationEvent(); else stopEqAnimation();
+  }, speed);
+  el("pauseEqBtn").disabled = false;
+}
+
+function stopEqAnimation() {
+  clearInterval(eqTimer);
+  eqTimer = null;
+  el("pauseEqBtn").disabled = true;
+}
+
+function startGraphAnimation() {
+  if (!events.length) return;
+  const speed = parseInt(el("speedGraph").value) || 100;
+  graphTimer = setInterval(() => {
+    if (graphIdx < events.length) renderGraphEvent(); else stopGraphAnimation();
+  }, speed);
+  el("pauseGraphBtn").disabled = false;
+}
+
+function stopGraphAnimation() {
+  clearInterval(graphTimer);
+  graphTimer = null;
+  el("pauseGraphBtn").disabled = true;
+}
+
 function resetPlayer() {
-  idx = 0; lastAssignment = {}; lastDomains = {}; isSolved = false;
+  eqIdx = 0;
+  graphIdx = 0;
+  graphStateStack = [];
+  lastAssignment = {};
+  lastDomains = {};
+  isSolved = false;
+  isFailed = false;
+
   el("log").innerHTML = "";
   el("assign").innerHTML = "<i>No assignments yet</i>";
   el("domains").innerHTML = "";
-  el("progress").value = 0; el("pos").textContent = "0 / 0";
+  el("progressEq").value = 0;
+  el("posEq").textContent = "0 / 0";
+  el("progressGraph").value = 0;
+  el("posGraph").textContent = "0 / 0";
   renderEquation(currentWords, currentResult, {});
+
+  // Reset graph
+  if (network) {
+    network.destroy();
+    network = null;
+    nodes = null;
+    edges = null;
+  }
 }
 
 // ---------- Buttons ----------
@@ -258,8 +686,8 @@ el("solveBtn").onclick = async () => {
   }, 800);
 };
 
-async function fetchTraceWithSpinner() {
-  const btn = el("startBtn");
+async function fetchTraceWithSpinner(btnId) {
+  const btn = el(btnId);
   loadingSpinner = document.createElement("span");
   loadingSpinner.className = "spinner";
   btn.appendChild(loadingSpinner);
@@ -273,20 +701,85 @@ async function fetchTraceWithSpinner() {
   return traceData;
 }
 
-el("startBtn").onclick = async () => {
-  const r = await fetchTraceWithSpinner();
-  if (!r || !r.ready) return alert("Trace not ready yet! Try again in a few seconds.");
-  events = r.events;
-  resetPlayer();
-  el("progress").max = events.length;
-  renderEvent();
-  startAnimation();
+// Equation Animation Controls
+el("startEqBtn").onclick = async () => {
+  if (!events.length) {
+    const r = await fetchTraceWithSpinner("startEqBtn");
+    if (!r || !r.ready) return alert("Trace not ready yet! Try again in a few seconds.");
+    events = r.events;
+    resetPlayer();
+    el("progressEq").max = events.length;
+    el("progressGraph").max = events.length;
+  }
+  renderEquationEvent();
+  startEqAnimation();
 };
 
-el("pauseBtn").onclick = stopAnimation;
-el("stepBtn").onclick = () => { if (!timer) renderEvent(); };
+el("pauseEqBtn").onclick = () => stopEqAnimation();
+el("stepEqBtn").onclick = () => renderEquationEvent();
+el("resetEqBtn").onclick = () => {
+  stopEqAnimation();
+  eqIdx = 0;
+  lastAssignment = {};
+  lastDomains = {};
+  isSolved = false;
+  isFailed = false;
+  el("assign").innerHTML = "<i>No assignments yet</i>";
+  el("domains").innerHTML = "";
+  el("progressEq").value = 0;
+  el("posEq").textContent = "0 / 0";
+  el("log").innerHTML = "";
+  renderEquation(currentWords, currentResult, {});
+};
+
+// Graph Animation Controls
+el("startGraphBtn").onclick = async () => {
+  if (!events.length) {
+    const r = await fetchTraceWithSpinner("startGraphBtn");
+    if (!r || !r.ready) return alert("Trace not ready yet! Try again in a few seconds.");
+    events = r.events;
+    resetPlayer();
+    el("progressEq").max = events.length;
+    el("progressGraph").max = events.length;
+  }
+
+  // Initialize search tree if not already done
+  if (!network) {
+    initializeSearchTree();
+  }
+
+  renderGraphEvent();
+  startGraphAnimation();
+};
+
+el("pauseGraphBtn").onclick = () => stopGraphAnimation();
+el("stepGraphBtn").onclick = () => renderGraphEvent();
+el("resetGraphBtn").onclick = () => {
+  stopGraphAnimation();
+  graphIdx = 0;
+  graphStateStack = [];
+  el("progressGraph").value = 0;
+  el("posGraph").textContent = "0 / 0";
+
+  // Reset graph visualization to initial state
+  if (network && nodes && searchTree.eventToNodeMap && searchTree.eventToNodeMap.length > 0) {
+    // Reset all nodes to default color
+    Object.values(searchTree.nodeMap).forEach(node => {
+      if (node.id === 0) {
+        nodes.update({ id: node.id, color: { background: '#E8E8E8', border: '#999' } });
+      } else {
+        nodes.update({ id: node.id, color: { background: '#F0F0F0', border: '#CCC' } });
+      }
+    });
+    // Focus on root node
+    network.focus(0, { scale: 1.0, animation: true });
+  }
+};
+
+// Clear button
 el("clearBtn").onclick = async () => {
   await fetch("/clear", { method: "POST" });
+  events = [];
   resetPlayer();
   el("statusText").textContent = "Idle";
 };
