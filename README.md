@@ -5,7 +5,7 @@
 
 
 **View the Visualizer**
-Open your browser to: [[http://127.0.0.1:5000](http://127.0.0.1:5000)](https://bruteforcekumar.pythonanywhere.com/)
+Open your browser to: (https://bruteforcekumar.pythonanywhere.com/)
 
 
 ## How to Use
