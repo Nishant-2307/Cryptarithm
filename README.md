@@ -3,19 +3,9 @@
 
 ## Quick Start
 
-**1. Install Dependencies**
-```bash
-pip install flask flask-cors
-````
-
-**2. Start the Server**
-
-```bash
-python app.py
-```
 
 **3. View the Visualizer**
-Open your browser to: [http://127.0.0.1:5000](http://127.0.0.1:5000)
+Open your browser to: [[http://127.0.0.1:5000](http://127.0.0.1:5000)](https://bruteforcekumar.pythonanywhere.com/)
 
 
 ## How to Use
@@ -27,8 +17,7 @@ Open your browser to: [http://127.0.0.1:5000](http://127.0.0.1:5000)
 3.  *Solve:* Click *Solve* and wait for the status to show "Ready".
 4.  *Visualize:*
       * *Play/Pause:* Use the controls to watch the algorithm build the search tree in real-time.
-      * *Time Travel:* Drag the slider to scrub backward or forward to inspect specific backtracking moments.
-      * *Logic Panel:* Watch the bottom panel to see the exact line of Python code executing at each step.
+      * *Logic Panel:* Watch the bottom panel to see the line of pseudo code executing at each step.
 
 
 # Cryptarithmetic CSP Solver & Visualizer
