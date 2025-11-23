@@ -16,12 +16,12 @@ A new interactive **search tree visualization** has been added to the Cryptarith
    - Arrows point from parent state to child state
 
 3. **Node Colors**:
-   - **Gray (#E8E8E8)**: Root node
-   - **Light Gray (#F0F0F0)**: Explored nodes (visited but not on current path)
-   - **Light Green (#B3E5B3)**: Nodes on the current path from root to current node
-   - **Yellow (#FFD700)**: Current node being explored
-   - **Pink (#FFB6C1)**: Dead ends (nodes that led to backtracking)
-   - **Green (#7BE141)**: Solution path (when solution is found)
+   - **Gray **: Root node
+   - **Light Gray **: Explored nodes (visited but not on current path)
+   - **Light Green **: Nodes on the current path from root to current node
+   - **Yellow **: Current node being explored
+   - **Pink **: Dead ends (nodes that led to backtracking)
+   - **Green **: Solution path (when solution is found)
 
 ### Tree Structure
 - **Hierarchical Layout**: Top-down tree showing parent-child relationships
