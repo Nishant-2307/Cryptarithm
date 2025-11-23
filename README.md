@@ -1,3 +1,36 @@
+
+
+
+## Quick Start
+
+**1. Install Dependencies**
+```bash
+pip install flask flask-cors
+````
+
+**2. Start the Server**
+
+```bash
+python app.py
+```
+
+**3. View the Visualizer**
+Open your browser to: [http://127.0.0.1:5000](http://127.0.0.1:5000)
+
+
+## How to Use
+
+1.  *Input Puzzle:* Enter the two addend words (e.g., CROSS + ROADS) and the result word (e.g., DANGER) in the top input boxes.
+2.  *Select Algorithm:*
+      * *Standard Backtracking:* Leave the settings as is.
+      * *AC-3 Optimization:* Check the *AC-3* box to enable "Arc Consistency." This performs smart logic pruning to eliminate impossible numbers early, drastically reducing the search steps.
+3.  *Solve:* Click *Solve* and wait for the status to show "Ready".
+4.  *Visualize:*
+      * *Play/Pause:* Use the controls to watch the algorithm build the search tree in real-time.
+      * *Time Travel:* Drag the slider to scrub backward or forward to inspect specific backtracking moments.
+      * *Logic Panel:* Watch the bottom panel to see the exact line of Python code executing at each step.
+
+
 # Cryptarithmetic CSP Solver & Visualizer
 
 ### What is Cryptarithmetic?
